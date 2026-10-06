@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mini Robot Assistant</string>
+    <string name="robot_greeting">How can I help you?</string>
+    <string name="robot_status_roaming">Exploring around...</string>
+    <string name="robot_status_idle">Standing by</string>
+    <string name="robot_status_looking">Looking around</string>
+    <string name="robot_status_listening">Listening for commands...</string>
+    <string name="mic_button_desc">Microphone</string>
+
+    <string name="channel_overlay_name">Mini Robot Overlay</string>
+    <string name="channel_overlay_desc">Maintains the floating robot assistant active on your screen</string>
+    <string name="notification_title">Mini Robot is Active</string>
+    <string name="notification_text">Your AI companion is roaming and ready to assist.</string>
+    <string name="action_stop_robot">Stop Robot</string>
+    <string name="action_open_app">Open App</string>
+    <string name="accessibility_service_description">Enables Mini Robot Assistant to perform user-requested actions such as navigation, pressing back, home, and interacting with supported apps upon your voice request.</string>
+</resources>
