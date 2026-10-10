@@ -5,11 +5,11 @@ import com.minirobot.assistant.agent.AgentTool
 import com.minirobot.assistant.agent.ToolExecutionResult
 
 /**
- * Tool to click on an on-screen button or element by matching visible text.
+ * Tool to click on an on-screen button or element by matching visible text using AccessibilityService.
  */
-class TapTool : AgentTool {
-    override val name: String = "tap_element"
-    override val description: String = "Clicks an on-screen element with matching text. Argument: text (String)"
+open class TapAccessibleElementTool : AgentTool {
+    override val name: String = "tap_accessible_element"
+    override val description: String = "Clicks an on-screen element with matching text using AccessibilityService. Argument: text (String)"
     override val isSensitive: Boolean = false
 
     override suspend fun execute(args: Map<String, Any?>): ToolExecutionResult {
@@ -38,11 +38,18 @@ class TapTool : AgentTool {
         } else {
             ToolExecutionResult(
                 success = false,
-                message = "Accessibility service is not active.",
+                message = "Accessibility service is not active. Please enable it in Settings.",
                 speakableResponse = "Accessibility permission is needed to tap on-screen elements."
             )
         }
     }
+}
+
+/**
+ * Backward-compatible alias for TapAccessibleElementTool under 'tap_element'.
+ */
+class TapTool : TapAccessibleElementTool() {
+    override val name: String = "tap_element"
 }
 
 /**

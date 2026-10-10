@@ -1,5 +1,7 @@
 package com.minirobot.assistant.model
 
+import com.minirobot.assistant.agent.TaskExecutionState
+
 /**
  * State representing the Assistant UI overlay, live speech recognition,
  * AI thoughts, dialog, and safety confirmation modals.
@@ -10,6 +12,7 @@ data class AssistantUiState(
     val statusMessage: String = "Tap the microphone to speak or choose a command.",
     val recognizedSpeech: String = "",
     val isListening: Boolean = false,
+    val executionState: TaskExecutionState = TaskExecutionState.IDLE,
     val rmsLevel: Float = 0f,
     val robotSpeechBubble: String? = null,
     val activeMood: RobotMood = RobotMood.HAPPY,
@@ -19,3 +22,4 @@ data class AssistantUiState(
     val onConfirmPendingAction: (() -> Unit)? = null,
     val onRejectPendingAction: (() -> Unit)? = null
 )
+

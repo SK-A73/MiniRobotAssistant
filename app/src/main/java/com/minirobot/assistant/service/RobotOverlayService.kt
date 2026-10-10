@@ -34,7 +34,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.minirobot.assistant.MainActivity
 import com.minirobot.assistant.R
+import com.minirobot.assistant.agent.AiAgent
 import com.minirobot.assistant.agent.TaskAgent
+import com.minirobot.assistant.agent.TaskExecutionState
 import com.minirobot.assistant.agent.ToolRegistry
 import com.minirobot.assistant.agent.ai.AiProviderManager
 import com.minirobot.assistant.data.SettingsRepository
@@ -75,6 +77,7 @@ class RobotOverlayService : Service() {
     private lateinit var aiProviderManager: AiProviderManager
     private lateinit var ttsManager: TextToSpeechManager
     private var speechManager: SpeechRecognitionManager? = null
+    private lateinit var aiAgent: AiAgent
     private lateinit var taskAgent: TaskAgent
 
     private var robotView: ComposeView? = null
@@ -126,6 +129,37 @@ class RobotOverlayService : Service() {
         toolRegistry = ToolRegistry(this)
         aiProviderManager = AiProviderManager(settingsRepository)
         ttsManager = TextToSpeechManager(this)
+
+        aiAgent = AiAgent(
+            toolRegistry = toolRegistry,
+            aiProviderManager = aiProviderManager,
+            ttsManager = ttsManager,
+            onStateChange = { state -> robotController.activityState = state },
+            onMoodChange = { mood -> robotController.mood = mood },
+            onStatusUpdate = { execState, msg ->
+                assistantUiState = assistantUiState.copy(
+                    executionState = execState,
+                    statusMessage = msg
+                )
+            },
+            onSpeechBubble = { text -> showSpeechBubble(text, 4000L) },
+            onPromptConfirmation = { title, desc, onConfirm, onReject ->
+                assistantUiState = assistantUiState.copy(
+                    isSafetyConfirmationVisible = true,
+                    pendingActionTitle = title,
+                    pendingActionDescription = desc,
+                    onConfirmPendingAction = {
+                        assistantUiState = assistantUiState.copy(isSafetyConfirmationVisible = false)
+                        onConfirm()
+                    },
+                    onRejectPendingAction = {
+                        assistantUiState = assistantUiState.copy(isSafetyConfirmationVisible = false)
+                        onReject()
+                    }
+                )
+                showAssistantOverlay()
+            }
+        )
 
         taskAgent = TaskAgent(
             toolRegistry = toolRegistry,
@@ -201,10 +235,11 @@ class RobotOverlayService : Service() {
             onFinalResult = { finalSpeech ->
                 assistantUiState = assistantUiState.copy(
                     recognizedSpeech = finalSpeech,
-                    isListening = false
+                    isListening = false,
+                    executionState = TaskExecutionState.UNDERSTANDING
                 )
                 serviceScope.launch {
-                    val response = taskAgent.processUserCommand(finalSpeech)
+                    val response = aiAgent.processUserCommand(finalSpeech)
                     assistantUiState = assistantUiState.copy(
                         statusMessage = response,
                         isListening = false
@@ -469,10 +504,11 @@ class RobotOverlayService : Service() {
     private fun executeVoiceCommand(command: String) {
         assistantUiState = assistantUiState.copy(
             recognizedSpeech = command,
-            statusMessage = "Executing: $command"
+            statusMessage = "Processing: $command",
+            executionState = TaskExecutionState.UNDERSTANDING
         )
         serviceScope.launch {
-            val result = taskAgent.processUserCommand(command)
+            val result = aiAgent.processUserCommand(command)
             assistantUiState = assistantUiState.copy(statusMessage = result)
         }
     }

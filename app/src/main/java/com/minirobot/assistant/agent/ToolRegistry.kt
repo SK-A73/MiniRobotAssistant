@@ -10,6 +10,7 @@ import com.minirobot.assistant.agent.tools.OpenAppTool
 import com.minirobot.assistant.agent.tools.OpenUrlTool
 import com.minirobot.assistant.agent.tools.ScrollTool
 import com.minirobot.assistant.agent.tools.SendMessageTool
+import com.minirobot.assistant.agent.tools.TapAccessibleElementTool
 import com.minirobot.assistant.agent.tools.TapTool
 import com.minirobot.assistant.agent.tools.TypeTextTool
 import com.minirobot.assistant.agent.tools.WebSearchTool
@@ -28,6 +29,7 @@ class ToolRegistry(context: Context) {
         register(BackTool())
         register(HomeTool(context))
         register(ScrollTool())
+        register(TapAccessibleElementTool())
         register(TapTool())
         register(TypeTextTool())
         register(LaunchSettingsTool(context))

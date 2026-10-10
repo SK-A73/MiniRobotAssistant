@@ -125,7 +125,28 @@ fun AssistantSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        val statusColor = if (state.isListening) Color(0xFFEF4444) else RobotCyan
+                        val statusColor = when (state.executionState) {
+                            com.minirobot.assistant.agent.TaskExecutionState.LISTENING -> Color(0xFFEF4444)
+                            com.minirobot.assistant.agent.TaskExecutionState.UNDERSTANDING,
+                            com.minirobot.assistant.agent.TaskExecutionState.PLANNING -> Color(0xFFA855F7)
+                            com.minirobot.assistant.agent.TaskExecutionState.EXECUTING -> Color(0xFF38BDF8)
+                            com.minirobot.assistant.agent.TaskExecutionState.VERIFYING -> Color(0xFFFBBF24)
+                            com.minirobot.assistant.agent.TaskExecutionState.COMPLETED -> Color(0xFF22C55E)
+                            com.minirobot.assistant.agent.TaskExecutionState.FAILED -> Color(0xFFEF4444)
+                            com.minirobot.assistant.agent.TaskExecutionState.IDLE -> if (state.isListening) Color(0xFFEF4444) else RobotCyan
+                        }
+
+                        val executionLabel = when (state.executionState) {
+                            com.minirobot.assistant.agent.TaskExecutionState.LISTENING -> "LISTENING..."
+                            com.minirobot.assistant.agent.TaskExecutionState.UNDERSTANDING -> "UNDERSTANDING..."
+                            com.minirobot.assistant.agent.TaskExecutionState.PLANNING -> "PLANNING STEPS..."
+                            com.minirobot.assistant.agent.TaskExecutionState.EXECUTING -> "EXECUTING..."
+                            com.minirobot.assistant.agent.TaskExecutionState.VERIFYING -> "VERIFYING RESULT..."
+                            com.minirobot.assistant.agent.TaskExecutionState.COMPLETED -> "COMPLETED ✨"
+                            com.minirobot.assistant.agent.TaskExecutionState.FAILED -> "FAILED ⚠️"
+                            com.minirobot.assistant.agent.TaskExecutionState.IDLE -> if (state.isListening) "LISTENING..." else "ONLINE COMPANION"
+                        }
+
                         Box(
                             modifier = Modifier
                                 .size(10.dp)
@@ -134,8 +155,8 @@ fun AssistantSheet(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (state.isListening) "LISTENING..." else "ONLINE COMPANION",
-                            color = RobotSkyBlue,
+                            text = executionLabel,
+                            color = statusColor,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
@@ -222,8 +243,9 @@ fun AssistantSheet(
                     VoiceCommandChip(label = "▶️ Open YouTube", onClick = { onCommandSelected("Open YouTube") })
                     VoiceCommandChip(label = "🌐 Open Chrome", onClick = { onCommandSelected("Open Chrome") })
                     VoiceCommandChip(label = "⬅️ Go back", onClick = { onCommandSelected("Go back") })
-                    VoiceCommandChip(label = "🏠 Go home", onClick = { onCommandSelected("Go home") })
                     VoiceCommandChip(label = "🔍 Search for C# tutorials", onClick = { onCommandSelected("Search for C# tutorials") })
+                    VoiceCommandChip(label = "⚡ Open YouTube & search beginner C# tutorials", onClick = { onCommandSelected("Open YouTube and search for beginner C# tutorials") })
+                    VoiceCommandChip(label = "🏠 Go home", onClick = { onCommandSelected("Go home") })
                     VoiceCommandChip(label = "🔋 Battery Status", onClick = { onCommandSelected("Battery") })
                 }
 

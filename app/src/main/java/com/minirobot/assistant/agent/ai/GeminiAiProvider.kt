@@ -2,6 +2,7 @@ package com.minirobot.assistant.agent.ai
 
 import android.util.Log
 import com.minirobot.assistant.agent.AgentTool
+import com.minirobot.assistant.agent.PlanStep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -52,15 +53,16 @@ class GeminiAiProvider(
 
         val systemPrompt = """
             You are Mini Robot Assistant, a helpful cute companion on an Android phone.
-            Decide if the user query requires invoking a tool or a conversational response.
+            Decide if the user query requires invoking one or more tools in sequence, or a conversational response.
             Available tools:
             $toolsDescription
             
             Respond STRICTLY in JSON format with this structure:
             {
                "response": "friendly speech for the robot",
-               "tool": "tool_name or empty string if no tool needed",
-               "args": { "key": "value" },
+               "plan": [
+                  { "tool": "tool_name", "args": { "key": "value" }, "description": "what this step accomplishes" }
+               ],
                "is_sensitive": true/false
             }
         """.trimIndent()
@@ -116,29 +118,51 @@ class GeminiAiProvider(
         return try {
             val obj = JSONObject(clean)
             val responseText = obj.optString("response", "Processing request...")
-            val toolName = obj.optString("tool", "").trim()
             val isSensitive = obj.optBoolean("is_sensitive", false)
 
-            val toolCalls = if (toolName.isNotEmpty() && toolName != "none" && toolName != "null") {
-                val argsObj = obj.optJSONObject("args")
-                val argsMap = mutableMapOf<String, Any?>()
-                if (argsObj != null) {
-                    val keys = argsObj.keys()
-                    while (keys.hasNext()) {
-                        val key = keys.next()
-                        argsMap[key] = argsObj.get(key)
+            val planArray = obj.optJSONArray("plan")
+            val planSteps = mutableListOf<PlanStep>()
+
+            if (planArray != null) {
+                for (i in 0 until planArray.length()) {
+                    val stepObj = planArray.optJSONObject(i) ?: continue
+                    val tName = stepObj.optString("tool", "").trim()
+                    if (tName.isEmpty() || tName == "none" || tName == "null") continue
+                    val desc = stepObj.optString("description", tName)
+                    val argsObj = stepObj.optJSONObject("args")
+                    val argsMap = mutableMapOf<String, Any?>()
+                    if (argsObj != null) {
+                        val keys = argsObj.keys()
+                        while (keys.hasNext()) {
+                            val key = keys.next()
+                            argsMap[key] = argsObj.get(key)
+                        }
                     }
+                    planSteps.add(PlanStep(tName, argsMap, desc))
                 }
-                listOf(ToolCallRequest(toolName, argsMap))
             } else {
-                emptyList()
+                // Fallback for single tool format
+                val toolName = obj.optString("tool", "").trim()
+                if (toolName.isNotEmpty() && toolName != "none" && toolName != "null") {
+                    val argsObj = obj.optJSONObject("args")
+                    val argsMap = mutableMapOf<String, Any?>()
+                    if (argsObj != null) {
+                        val keys = argsObj.keys()
+                        while (keys.hasNext()) {
+                            val key = keys.next()
+                            argsMap[key] = argsObj.get(key)
+                        }
+                    }
+                    planSteps.add(PlanStep(toolName, argsMap, toolName))
+                }
             }
 
             AgentIntentDecision(
                 responseText = responseText,
-                toolCalls = toolCalls,
+                toolCalls = planSteps.map { ToolCallRequest(it.toolName, it.arguments) },
+                planSteps = planSteps,
                 requiresConfirmation = isSensitive,
-                confirmationPrompt = if (isSensitive) "Do you want me to continue with $toolName?" else null
+                confirmationPrompt = if (isSensitive) "Do you want me to proceed with this action?" else null
             )
         } catch (e: Exception) {
             Log.w(TAG, "Failed to parse Gemini JSON output: $geminiText", e)
