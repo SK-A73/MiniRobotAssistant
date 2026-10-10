@@ -59,3 +59,9 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }
+
+// Workaround for Android Studio / IntelliJ Kotlin Script model sync
+tasks.register("prepareKotlinBuildScriptModel") {
+    description = "Prepares Kotlin build script model for IDE sync"
+}
+
