@@ -91,23 +91,3 @@ class DeviceTimeTool : AgentTool {
         )
     }
 }
-
-/**
- * Tool representing sensitive operations (e.g., sending messages or modifying sensitive data).
- * Marked with isSensitive = true to trigger the Phase 9 safety confirmation flow.
- */
-class SendMessageTool(private val context: Context) : AgentTool {
-    override val name: String = "send_message"
-    override val description: String = "Prepares and sends a message or communication. Argument: recipient (String), message (String)"
-    override val isSensitive: Boolean = true
-
-    override suspend fun execute(args: Map<String, Any?>): ToolExecutionResult {
-        val recipient = (args["recipient"] as? String) ?: "Contact"
-        val message = (args["message"] as? String) ?: ""
-        return ToolExecutionResult(
-            success = true,
-            message = "Message confirmed and prepared for $recipient: \"$message\"",
-            speakableResponse = "Message has been sent to $recipient."
-        )
-    }
-}

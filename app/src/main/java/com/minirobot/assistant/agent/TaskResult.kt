@@ -10,6 +10,7 @@ enum class TaskExecutionState {
     UNDERSTANDING,
     PLANNING,
     EXECUTING,
+    WAITING_FOR_CONFIRMATION,
     VERIFYING,
     COMPLETED,
     FAILED

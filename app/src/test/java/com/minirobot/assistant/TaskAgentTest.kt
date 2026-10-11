@@ -166,4 +166,133 @@ class TaskAgentTest {
         assertTrue(decision.planSteps.isEmpty())
         assertTrue(decision.responseText.contains("Hello"))
     }
+
+    @Test
+    fun testFlashlightOnIntent() = runTest {
+        val decision = aiProvider.decideIntent("Turn on flashlight", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("flashlight", decision.planSteps[0].toolName)
+        assertEquals(true, decision.planSteps[0].arguments["state"])
+        assertEquals(0, decision.planSteps[0].arguments["duration_seconds"])
+        assertFalse(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testFlashlightOffIntent() = runTest {
+        val decision = aiProvider.decideIntent("Turn off flashlight", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("flashlight", decision.planSteps[0].toolName)
+        assertEquals(false, decision.planSteps[0].arguments["state"])
+        assertFalse(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testFlashlightTimedIntent() = runTest {
+        val decision = aiProvider.decideIntent("Turn on flashlight for 2 minutes", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("flashlight", decision.planSteps[0].toolName)
+        assertEquals(true, decision.planSteps[0].arguments["state"])
+        assertEquals(120, decision.planSteps[0].arguments["duration_seconds"])
+        assertFalse(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testSetAlarmIntent() = runTest {
+        val decision = aiProvider.decideIntent("Set alarm for 7:30 am", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("set_alarm", decision.planSteps[0].toolName)
+        assertEquals(7, decision.planSteps[0].arguments["hour"])
+        assertEquals(30, decision.planSteps[0].arguments["minutes"])
+        assertFalse(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testSetAlarmPmWithLabelIntent() = runTest {
+        val decision = aiProvider.decideIntent("Set an alarm at 8:00 pm with label Workout", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("set_alarm", decision.planSteps[0].toolName)
+        assertEquals(20, decision.planSteps[0].arguments["hour"])
+        assertEquals(0, decision.planSteps[0].arguments["minutes"])
+        assertEquals("Workout", decision.planSteps[0].arguments["label"])
+        assertFalse(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testSetTimerIntent() = runTest {
+        val decision = aiProvider.decideIntent("Set a timer for 5 minutes", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("set_timer", decision.planSteps[0].toolName)
+        assertEquals(300, decision.planSteps[0].arguments["duration_seconds"])
+        assertFalse(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testSetTimerSecondsIntent() = runTest {
+        val decision = aiProvider.decideIntent("Timer for 30 seconds", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("set_timer", decision.planSteps[0].toolName)
+        assertEquals(30, decision.planSteps[0].arguments["duration_seconds"])
+        assertFalse(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testCallContactRequiresConfirmation() = runTest {
+        val decision = aiProvider.decideIntent("Call Alice", emptyList())
+        assertEquals(2, decision.planSteps.size)
+        assertEquals("lookup_contact", decision.planSteps[0].toolName)
+        assertEquals("Alice", decision.planSteps[0].arguments["name"])
+        assertEquals("make_phone_call", decision.planSteps[1].toolName)
+        assertTrue(decision.requiresConfirmation)
+        assertTrue(decision.confirmationPrompt?.contains("Alice") == true)
+    }
+
+    @Test
+    fun testCallDirectNumberRequiresConfirmation() = runTest {
+        val decision = aiProvider.decideIntent("Call 1234567890", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("make_phone_call", decision.planSteps[0].toolName)
+        assertEquals("1234567890", decision.planSteps[0].arguments["phone_number"])
+        assertTrue(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testSendApologyMessageGeneratesTextAndRequiresConfirmation() = runTest {
+        val decision = aiProvider.decideIntent("Send an apology message to Mom", emptyList())
+        assertEquals(2, decision.planSteps.size)
+        assertEquals("lookup_contact", decision.planSteps[0].toolName)
+        assertEquals("Mom", decision.planSteps[0].arguments["name"])
+        assertEquals("send_message", decision.planSteps[1].toolName)
+        val msg = decision.planSteps[1].arguments["message"] as String
+        assertTrue(msg.contains("sorry", ignoreCase = true))
+        assertTrue(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testSendCustomMessageRequiresConfirmation() = runTest {
+        val decision = aiProvider.decideIntent("Send message to John saying I will be late", emptyList())
+        assertEquals(2, decision.planSteps.size)
+        assertEquals("lookup_contact", decision.planSteps[0].toolName)
+        assertEquals("John", decision.planSteps[0].arguments["name"])
+        assertEquals("send_message", decision.planSteps[1].toolName)
+        assertEquals("I will be late", decision.planSteps[1].arguments["message"])
+        assertTrue(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testOpenWifiSettingsIntent() = runTest {
+        val decision = aiProvider.decideIntent("Open wifi settings", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("open_settings_detail", decision.planSteps[0].toolName)
+        assertEquals("wifi", decision.planSteps[0].arguments["setting_type"])
+        assertFalse(decision.requiresConfirmation)
+    }
+
+    @Test
+    fun testOpenBluetoothSettingsIntent() = runTest {
+        val decision = aiProvider.decideIntent("Open bluetooth settings", emptyList())
+        assertEquals(1, decision.planSteps.size)
+        assertEquals("open_settings_detail", decision.planSteps[0].toolName)
+        assertEquals("bluetooth", decision.planSteps[0].arguments["setting_type"])
+        assertFalse(decision.requiresConfirmation)
+    }
 }

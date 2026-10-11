@@ -14,7 +14,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Package Visibility for Launching Installed Apps & Speech Recognizer (Android 11+) -->
+    <!-- Permissions for Super Robot Upgrade (Flashlight, Contacts, Calls, Alarms/Timers) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+
+    <!-- Package Visibility for Launching Installed Apps, Speech Recognizer, Alarms, Calls & SMS (Android 11+) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -22,6 +28,24 @@
         </intent>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.CALL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
         </intent>
         <package android:name="com.google.android.googlequicksearchbox" />
     </queries>

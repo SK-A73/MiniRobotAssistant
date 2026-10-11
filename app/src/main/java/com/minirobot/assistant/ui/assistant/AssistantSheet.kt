@@ -130,6 +130,7 @@ fun AssistantSheet(
                             com.minirobot.assistant.agent.TaskExecutionState.UNDERSTANDING,
                             com.minirobot.assistant.agent.TaskExecutionState.PLANNING -> Color(0xFFA855F7)
                             com.minirobot.assistant.agent.TaskExecutionState.EXECUTING -> Color(0xFF38BDF8)
+                            com.minirobot.assistant.agent.TaskExecutionState.WAITING_FOR_CONFIRMATION -> Color(0xFFF59E0B)
                             com.minirobot.assistant.agent.TaskExecutionState.VERIFYING -> Color(0xFFFBBF24)
                             com.minirobot.assistant.agent.TaskExecutionState.COMPLETED -> Color(0xFF22C55E)
                             com.minirobot.assistant.agent.TaskExecutionState.FAILED -> Color(0xFFEF4444)
@@ -141,6 +142,7 @@ fun AssistantSheet(
                             com.minirobot.assistant.agent.TaskExecutionState.UNDERSTANDING -> "UNDERSTANDING..."
                             com.minirobot.assistant.agent.TaskExecutionState.PLANNING -> "PLANNING STEPS..."
                             com.minirobot.assistant.agent.TaskExecutionState.EXECUTING -> "EXECUTING..."
+                            com.minirobot.assistant.agent.TaskExecutionState.WAITING_FOR_CONFIRMATION -> "CONFIRMATION NEEDED ⚠️"
                             com.minirobot.assistant.agent.TaskExecutionState.VERIFYING -> "VERIFYING RESULT..."
                             com.minirobot.assistant.agent.TaskExecutionState.COMPLETED -> "COMPLETED ✨"
                             com.minirobot.assistant.agent.TaskExecutionState.FAILED -> "FAILED ⚠️"

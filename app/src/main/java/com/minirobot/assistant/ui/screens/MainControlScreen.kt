@@ -107,6 +107,16 @@ fun MainControlScreen(
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         )
     }
+    var hasContactsPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var hasCallPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+        )
+    }
     var isOverlayRunning by remember { mutableStateOf(settingsRepo.isOverlayServiceRunning) }
 
     // AI Settings states
@@ -115,11 +125,23 @@ fun MainControlScreen(
     var backendUrl by remember { mutableStateOf(settingsRepo.backendUrl) }
     var apiKeySavedFeedback by remember { mutableStateOf(false) }
 
-    // Microphone permission launcher
+    // Permission launchers
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasMicPermission = isGranted
+    }
+
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasContactsPermission = isGranted
+    }
+
+    val callPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCallPermission = isGranted
     }
 
     // Auto-prompt for microphone permission on screen launch if not yet granted
@@ -136,6 +158,8 @@ fun MainControlScreen(
                 hasOverlayPermission = Settings.canDrawOverlays(context)
                 hasAccessibilityPermission = AccessibilityUtils.isAccessibilityServiceEnabled(context)
                 hasMicPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                hasContactsPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+                hasCallPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
                 isOverlayRunning = settingsRepo.isOverlayServiceRunning
             }
         }
@@ -305,6 +329,28 @@ fun MainControlScreen(
             isGranted = hasMicPermission,
             actionLabel = "Grant Microphone",
             onAction = { micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 4. Contacts Permission Card
+        PermissionStatusCard(
+            title = "Contacts Access",
+            description = "Enables looking up friends and family by name for calls and messaging.",
+            isGranted = hasContactsPermission,
+            actionLabel = "Grant Contacts",
+            onAction = { contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS) }
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 5. Phone Calls Permission Card
+        PermissionStatusCard(
+            title = "Phone Calls",
+            description = "Enables placing phone calls directly upon confirmation. If not granted, the phone dialer is safely opened instead.",
+            isGranted = hasCallPermission,
+            actionLabel = "Grant Phone",
+            onAction = { callPermissionLauncher.launch(Manifest.permission.CALL_PHONE) }
         )
 
         Spacer(modifier = Modifier.height(20.dp))

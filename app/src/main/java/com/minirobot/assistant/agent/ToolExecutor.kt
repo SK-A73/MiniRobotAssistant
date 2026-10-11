@@ -48,6 +48,11 @@ class ToolExecutor(
             val prompt = plan.confirmationPrompt
                 ?: "Do you want me to proceed with ${tool?.name ?: "this sensitive action"}?"
 
+            robotStateController.transitionTo(
+                TaskExecutionState.WAITING_FOR_CONFIRMATION,
+                prompt
+            )
+
             var userConfirmed = false
             var waiting = true
 

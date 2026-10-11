@@ -41,6 +41,10 @@ class RobotStateController(
                 onStateChange(RobotActivityState.WALKING)
                 onMoodChange(RobotMood.PLAYFUL)
             }
+            TaskExecutionState.WAITING_FOR_CONFIRMATION -> {
+                onStateChange(RobotActivityState.LOOKING_AROUND)
+                onMoodChange(RobotMood.CURIOUS)
+            }
             TaskExecutionState.VERIFYING -> {
                 onStateChange(RobotActivityState.LOOKING_AROUND)
                 onMoodChange(RobotMood.CURIOUS)
@@ -69,6 +73,7 @@ class RobotStateController(
         TaskExecutionState.UNDERSTANDING -> "Understanding request..."
         TaskExecutionState.PLANNING -> "Planning action steps..."
         TaskExecutionState.EXECUTING -> "Executing task..."
+        TaskExecutionState.WAITING_FOR_CONFIRMATION -> "Waiting for your confirmation... ⚠️"
         TaskExecutionState.VERIFYING -> "Verifying result..."
         TaskExecutionState.COMPLETED -> "Task completed successfully! ✨"
         TaskExecutionState.FAILED -> "Task could not be completed."
