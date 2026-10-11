@@ -26,6 +26,10 @@ class SettingsRepository(context: Context) {
         get() = prefs.getString(KEY_GEMINI_MODEL, "gemini-1.5-flash") ?: "gemini-1.5-flash"
         set(value) = prefs.edit().putString(KEY_GEMINI_MODEL, value).apply()
 
+    var backendUrl: String
+        get() = prefs.getString(KEY_BACKEND_URL, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BACKEND_URL, value.trim()).apply()
+
     var isTtsEnabled: Boolean
         get() = prefs.getBoolean(KEY_TTS_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_TTS_ENABLED, value).apply()
@@ -37,6 +41,7 @@ class SettingsRepository(context: Context) {
     companion object {
         private const val PREFS_NAME = "mini_robot_assistant_prefs"
         private const val KEY_GEMINI_API_KEY = "gemini_api_key"
+        private const val KEY_BACKEND_URL = "backend_url"
         private const val KEY_AI_PROVIDER_MODE = "ai_provider_mode"
         private const val KEY_GEMINI_MODEL = "gemini_model"
         private const val KEY_TTS_ENABLED = "tts_enabled"

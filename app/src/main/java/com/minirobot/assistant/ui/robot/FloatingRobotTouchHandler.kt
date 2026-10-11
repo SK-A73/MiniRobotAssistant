@@ -18,6 +18,7 @@ class FloatingRobotTouchHandler(
     private val layoutParams: WindowManager.LayoutParams,
     private val onSingleTap: () -> Unit,
     private val onDoubleTap: () -> Unit,
+    private val onLongPress: () -> Unit = {},
     private val onDragStart: () -> Unit,
     private val onDragEnd: (finalX: Float, finalY: Float) -> Unit
 ) : View.OnTouchListener {
@@ -30,13 +31,23 @@ class FloatingRobotTouchHandler(
 
     private val gestureDetector = GestureDetector(null, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-            onSingleTap()
+            if (!isDragging) {
+                onSingleTap()
+            }
             return true
         }
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            onDoubleTap()
+            if (!isDragging) {
+                onDoubleTap()
+            }
             return true
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            if (!isDragging) {
+                onLongPress()
+            }
         }
     })
 

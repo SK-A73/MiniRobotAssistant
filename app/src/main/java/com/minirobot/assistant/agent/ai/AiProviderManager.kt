@@ -10,10 +10,12 @@ class AiProviderManager(private val settingsRepository: SettingsRepository) {
     fun getActiveProvider(): AiProvider {
         val mode = settingsRepository.aiProviderMode
         val apiKey = settingsRepository.geminiApiKey
+        val backendUrl = settingsRepository.backendUrl
 
-        return if (mode == SettingsRepository.PROVIDER_GEMINI && apiKey.isNotBlank()) {
+        return if (mode == SettingsRepository.PROVIDER_GEMINI && (backendUrl.isNotBlank() || apiKey.isNotBlank())) {
             GeminiAiProvider(
                 apiKey = apiKey,
+                backendUrl = backendUrl,
                 model = settingsRepository.geminiModel
             )
         } else {

@@ -1,14 +1,20 @@
 package com.minirobot.assistant.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Dedicated accessibility service for authorized on-device automation.
- * Supports navigating back, going home, clicking UI elements, typing text, and scrolling.
+ * Supports navigating back, going home, clicking UI elements, typing text, scrolling,
+ * and tracking active software keyboard window bounds to prevent the robot from obstructing typing.
  * Isolated from the robot UI layer for safety and modularity.
  */
 class PhoneAutomationAccessibilityService : AccessibilityService() {
@@ -17,10 +23,34 @@ class PhoneAutomationAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         instance = this
         Log.i(TAG, "PhoneAutomationAccessibilityService connected and ready")
+        checkKeyboardWindow()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Can track active window/app changes if needed for contextual AI
+        checkKeyboardWindow()
+    }
+
+    private fun checkKeyboardWindow() {
+        var keyboardTop = -1
+        try {
+            val windowList = windows
+            for (window in windowList) {
+                if (window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+                    val rect = Rect()
+                    window.getBoundsInScreen(rect)
+                    if (rect.height() > 100 && rect.top > 0) {
+                        keyboardTop = rect.top
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking keyboard window", e)
+        }
+
+        if (_keyboardTopState.value != keyboardTop) {
+            _keyboardTopState.value = keyboardTop
+        }
     }
 
     override fun onInterrupt() {
@@ -32,6 +62,7 @@ class PhoneAutomationAccessibilityService : AccessibilityService() {
         if (instance === this) {
             instance = null
         }
+        _keyboardTopState.value = -1
         Log.i(TAG, "PhoneAutomationAccessibilityService destroyed")
     }
 
@@ -128,6 +159,9 @@ class PhoneAutomationAccessibilityService : AccessibilityService() {
         @Volatile
         var instance: PhoneAutomationAccessibilityService? = null
             private set
+
+        private val _keyboardTopState = MutableStateFlow(-1)
+        val keyboardTopState: StateFlow<Int> = _keyboardTopState.asStateFlow()
 
         fun isServiceRunning(): Boolean = instance != null
     }

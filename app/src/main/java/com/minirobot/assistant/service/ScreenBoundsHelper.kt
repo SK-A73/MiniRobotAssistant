@@ -26,7 +26,8 @@ object ScreenBoundsHelper {
         context: Context,
         robotWidthPx: Float,
         robotHeightPx: Float,
-        marginPx: Float = 24f
+        marginPx: Float = 24f,
+        bottomOverride: Float? = null
     ): SafeBounds {
         val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
@@ -68,7 +69,12 @@ object ScreenBoundsHelper {
         val maxX = (screenWidth - insetsRight - robotWidthPx - marginPx).coerceAtLeast(minX)
 
         val minY = insetsTop + marginPx
-        val maxY = (screenHeight - insetsBottom - robotHeightPx - marginPx).coerceAtLeast(minY)
+        val effectiveBottomLimit = if (bottomOverride != null && bottomOverride > minY) {
+            bottomOverride
+        } else {
+            (screenHeight - insetsBottom).toFloat()
+        }
+        val maxY = (effectiveBottomLimit - robotHeightPx - marginPx).coerceAtLeast(minY)
 
         return SafeBounds(
             minX = minX,

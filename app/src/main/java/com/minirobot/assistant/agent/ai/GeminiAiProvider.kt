@@ -14,14 +14,16 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * AI Provider utilizing Google Gemini API for natural language understanding and tool dispatch.
+ * AI Provider utilizing Google Gemini API or a secure backend proxy for natural language
+ * understanding, structured task planning, and strict tool validation against an allowlist.
  */
 class GeminiAiProvider(
-    private val apiKey: String,
+    private val apiKey: String = "",
+    private val backendUrl: String = "",
     private val model: String = "gemini-1.5-flash"
 ) : AiProvider {
 
-    override val name: String = "Google Gemini ($model)"
+    override val name: String = if (backendUrl.isNotBlank()) "Gemini Backend Proxy" else "Google Gemini ($model)"
 
     private val localFallback = LocalRuleBasedAiProvider()
     private val client = OkHttpClient.Builder()
@@ -33,21 +35,69 @@ class GeminiAiProvider(
         userInput: String,
         availableTools: List<AgentTool>
     ): AgentIntentDecision {
-        if (apiKey.isBlank()) {
-            Log.d(TAG, "No API key configured, using local rule-based AI")
+        if (backendUrl.isBlank() && apiKey.isBlank()) {
+            Log.d(TAG, "No Gemini backend URL or API key configured, using local offline engine")
             return localFallback.decideIntent(userInput, availableTools)
         }
 
         return withContext(Dispatchers.IO) {
             try {
-                callGeminiApi(userInput, availableTools)
+                if (backendUrl.isNotBlank()) {
+                    callBackendProxy(userInput, availableTools)
+                } else {
+                    callGeminiApi(userInput, availableTools)
+                }
             } catch (e: Exception) {
-                Log.w(TAG, "Gemini API call failed (${e.message}), falling back to local provider", e)
+                val safeMsg = sanitizeError(e.message ?: "Unknown error")
+                Log.w(TAG, "Gemini provider call failed ($safeMsg), falling back to local provider")
                 localFallback.decideIntent(userInput, availableTools)
             }
         }
     }
 
+    /**
+     * Calls a self-hosted secure backend proxy that holds the GEMINI_API_KEY environment variable.
+     */
+    private fun callBackendProxy(userInput: String, availableTools: List<AgentTool>): AgentIntentDecision {
+        val rootUrl = backendUrl.trimEnd('/')
+        val endpoint = if (rootUrl.endsWith("/api/plan")) rootUrl else "$rootUrl/api/plan"
+
+        val toolsJson = JSONArray().apply {
+            availableTools.forEach { tool ->
+                put(JSONObject().apply {
+                    put("name", tool.name)
+                    put("description", tool.description)
+                    put("is_sensitive", tool.isSensitive)
+                })
+            }
+        }
+
+        val requestPayload = JSONObject().apply {
+            put("query", userInput)
+            put("tools", toolsJson)
+        }
+
+        val body = requestPayload.toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder()
+            .url(endpoint)
+            .post(body)
+            .build()
+
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val err = sanitizeError(response.body?.string() ?: "")
+                Log.w(TAG, "Backend proxy returned HTTP ${response.code}: $err")
+                return localFallback.decideIntentBlocking(userInput, availableTools)
+            }
+
+            val respBody = response.body?.string() ?: ""
+            parseGeminiOutput(respBody, userInput, availableTools)
+        }
+    }
+
+    /**
+     * Direct Gemini API call when user provides their personal development API key.
+     */
     private fun callGeminiApi(userInput: String, availableTools: List<AgentTool>): AgentIntentDecision {
         val toolsDescription = availableTools.joinToString("\n") { "- ${it.name}: ${it.description} (sensitive: ${it.isSensitive})" }
 
@@ -88,7 +138,7 @@ class GeminiAiProvider(
 
         return client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                val err = response.body?.string() ?: ""
+                val err = sanitizeError(response.body?.string() ?: "")
                 Log.w(TAG, "Gemini returned HTTP ${response.code}: $err")
                 return localFallback.decideIntentBlocking(userInput, availableTools)
             }
@@ -115,10 +165,12 @@ class GeminiAiProvider(
             .replace("```", "")
             .trim()
 
+        val allowedToolMap = availableTools.associateBy { it.name }
+
         return try {
             val obj = JSONObject(clean)
             val responseText = obj.optString("response", "Processing request...")
-            val isSensitive = obj.optBoolean("is_sensitive", false)
+            var isSensitive = obj.optBoolean("is_sensitive", false)
 
             val planArray = obj.optJSONArray("plan")
             val planSteps = mutableListOf<PlanStep>()
@@ -128,6 +180,18 @@ class GeminiAiProvider(
                     val stepObj = planArray.optJSONObject(i) ?: continue
                     val tName = stepObj.optString("tool", "").trim()
                     if (tName.isEmpty() || tName == "none" || tName == "null") continue
+
+                    // Validate tool against allowlist of implemented tools
+                    val toolDef = allowedToolMap[tName]
+                    if (toolDef == null) {
+                        Log.w(TAG, "Tool '$tName' rejected: not in implemented tools allowlist")
+                        continue
+                    }
+
+                    if (toolDef.isSensitive) {
+                        isSensitive = true
+                    }
+
                     val desc = stepObj.optString("description", tName)
                     val argsObj = stepObj.optJSONObject("args")
                     val argsMap = mutableMapOf<String, Any?>()
@@ -143,7 +207,9 @@ class GeminiAiProvider(
             } else {
                 // Fallback for single tool format
                 val toolName = obj.optString("tool", "").trim()
-                if (toolName.isNotEmpty() && toolName != "none" && toolName != "null") {
+                val toolDef = allowedToolMap[toolName]
+                if (toolDef != null) {
+                    if (toolDef.isSensitive) isSensitive = true
                     val argsObj = obj.optJSONObject("args")
                     val argsMap = mutableMapOf<String, Any?>()
                     if (argsObj != null) {
@@ -162,10 +228,10 @@ class GeminiAiProvider(
                 toolCalls = planSteps.map { ToolCallRequest(it.toolName, it.arguments) },
                 planSteps = planSteps,
                 requiresConfirmation = isSensitive,
-                confirmationPrompt = if (isSensitive) "Do you want me to proceed with this action?" else null
+                confirmationPrompt = if (isSensitive) "Do you want me to proceed with this sensitive action?" else null
             )
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to parse Gemini JSON output: $geminiText", e)
+            Log.w(TAG, "Failed to parse Gemini output, falling back to local provider: ${sanitizeError(e.message ?: "")}")
             localFallback.decideIntentBlocking(fallbackInput, availableTools)
         }
     }
@@ -179,7 +245,12 @@ class GeminiAiProvider(
         }
     }
 
+    private fun sanitizeError(msg: String): String {
+        return msg.replace(Regex("key=[a-zA-Z0-9_\\-]+"), "key=REDACTED")
+    }
+
     companion object {
         private const val TAG = "MiniRobotGemini"
     }
 }
+

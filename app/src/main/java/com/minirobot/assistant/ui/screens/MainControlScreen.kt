@@ -112,6 +112,7 @@ fun MainControlScreen(
     // AI Settings states
     var aiProviderMode by remember { mutableStateOf(settingsRepo.aiProviderMode) }
     var geminiApiKey by remember { mutableStateOf(settingsRepo.geminiApiKey) }
+    var backendUrl by remember { mutableStateOf(settingsRepo.backendUrl) }
     var apiKeySavedFeedback by remember { mutableStateOf(false) }
 
     // Microphone permission launcher
@@ -119,6 +120,13 @@ fun MainControlScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasMicPermission = isGranted
+    }
+
+    // Auto-prompt for microphone permission on screen launch if not yet granted
+    LaunchedEffect(Unit) {
+        if (!hasMicPermission) {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     // Refresh permission statuses whenever the activity resumes
@@ -281,8 +289,8 @@ fun MainControlScreen(
 
         // 2. Accessibility Permission Card
         PermissionStatusCard(
-            title = "Accessibility Automation",
-            description = "Enables hands-free actions like Back, Home, and clicking buttons on command.",
+            title = "Accessibility Automation & Keyboard Detection",
+            description = "Enables hands-free actions (Back, Home, Click) and automatically moves the robot above keyboards so it never covers typing.",
             isGranted = hasAccessibilityPermission,
             actionLabel = "Enable in Settings",
             onAction = { AccessibilityUtils.openAccessibilitySettings(context) }
@@ -292,8 +300,8 @@ fun MainControlScreen(
 
         // 3. Microphone Permission Card
         PermissionStatusCard(
-            title = "Microphone & Voice Input",
-            description = "Allows speech recognition so you can speak directly to the robot assistant.",
+            title = "Microphone & Tap-to-Speak",
+            description = "Tap the roaming robot directly to speak commands immediately. Long-press opens full assistant menu.",
             isGranted = hasMicPermission,
             actionLabel = "Grant Microphone",
             onAction = { micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
@@ -340,7 +348,7 @@ fun MainControlScreen(
                             fontSize = 14.sp
                         )
                         Text(
-                            text = "Instant, offline tool execution. No API key needed.",
+                            text = "Instant, offline tool execution for phone tasks. No API key needed.",
                             color = RobotTextSecondary,
                             fontSize = 12.sp
                         )
@@ -379,13 +387,41 @@ fun MainControlScreen(
 
                 AnimatedVisibility(visible = aiProviderMode == SettingsRepository.PROVIDER_GEMINI) {
                     Column(modifier = Modifier.padding(top = 12.dp)) {
+                        Text(
+                            text = "Get your free key at aistudio.google.com/app/apikey, or specify your backend proxy URL.",
+                            color = RobotTextSecondary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = backendUrl,
+                            onValueChange = {
+                                backendUrl = it
+                                apiKeySavedFeedback = false
+                            },
+                            label = { Text("Backend Proxy URL (Optional)") },
+                            placeholder = { Text("e.g. http://10.0.2.2:8000") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = RobotTextPrimary,
+                                unfocusedTextColor = RobotTextPrimary,
+                                focusedBorderColor = RobotSkyBlue,
+                                unfocusedBorderColor = RobotCardBorder
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         OutlinedTextField(
                             value = geminiApiKey,
                             onValueChange = {
                                 geminiApiKey = it
                                 apiKeySavedFeedback = false
                             },
-                            label = { Text("Gemini API Key") },
+                            label = { Text("Gemini API Key (Google AI Studio)") },
                             placeholder = { Text("Enter your Gemini API key") },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = RobotTextPrimary,
@@ -403,6 +439,7 @@ fun MainControlScreen(
                         Button(
                             onClick = {
                                 settingsRepo.geminiApiKey = geminiApiKey
+                                settingsRepo.backendUrl = backendUrl
                                 apiKeySavedFeedback = true
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = RobotSurfaceVariant),
@@ -410,7 +447,7 @@ fun MainControlScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = if (apiKeySavedFeedback) "Saved ✓" else "Save API Key",
+                                text = if (apiKeySavedFeedback) "Saved ✓" else "Save AI Configuration",
                                 color = RobotTextPrimary
                             )
                         }

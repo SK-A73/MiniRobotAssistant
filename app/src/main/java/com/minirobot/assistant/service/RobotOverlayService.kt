@@ -1,5 +1,6 @@
 package com.minirobot.assistant.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,11 +8,14 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
+import androidx.core.content.ContextCompat
+import com.minirobot.assistant.accessibility.PhoneAutomationAccessibilityService
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
@@ -190,6 +194,7 @@ class RobotOverlayService : Service() {
 
         createFloatingRobotOverlay()
         startPositionSyncLoop()
+        setupKeyboardAvoidance()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -207,7 +212,7 @@ class RobotOverlayService : Service() {
                 this,
                 NOTIFICATION_ID,
                 notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             )
         } else {
             startForeground(NOTIFICATION_ID, notification)
@@ -221,16 +226,21 @@ class RobotOverlayService : Service() {
             context = this,
             onReady = {
                 robotController.activityState = RobotActivityState.LISTENING
+                robotController.mood = RobotMood.THINKING
+                showSpeechBubble("Listening... 🎙️", 6000L)
                 assistantUiState = assistantUiState.copy(
                     isListening = true,
                     statusMessage = "Listening for your voice... 🎙️"
                 )
             },
-            onRmsChanged = { rms ->
+            onRmsUpdate = { rms ->
                 assistantUiState = assistantUiState.copy(rmsLevel = rms)
             },
             onPartialResult = { partial ->
                 assistantUiState = assistantUiState.copy(recognizedSpeech = partial)
+                if (partial.isNotBlank()) {
+                    showSpeechBubble(partial, 4000L)
+                }
             },
             onFinalResult = { finalSpeech ->
                 assistantUiState = assistantUiState.copy(
@@ -238,20 +248,23 @@ class RobotOverlayService : Service() {
                     isListening = false,
                     executionState = TaskExecutionState.UNDERSTANDING
                 )
+                showSpeechBubble("Thinking... 🤖", 3000L)
                 serviceScope.launch {
                     val response = aiAgent.processUserCommand(finalSpeech)
                     assistantUiState = assistantUiState.copy(
                         statusMessage = response,
                         isListening = false
                     )
+                    showSpeechBubble(response, 4500L)
                 }
             },
             onError = { errorMsg ->
-                robotController.activityState = RobotActivityState.ERROR
+                robotController.activityState = RobotActivityState.IDLE
                 assistantUiState = assistantUiState.copy(
                     statusMessage = errorMsg,
                     isListening = false
                 )
+                showSpeechBubble(errorMsg, 3500L)
             }
         )
     }
@@ -377,6 +390,7 @@ class RobotOverlayService : Service() {
                     layoutParams = robotLayoutParams,
                     onSingleTap = { onRobotTapped() },
                     onDoubleTap = { openMainActivity() },
+                    onLongPress = { showAssistantOverlay() },
                     onDragStart = { robotController.isPausedForUserDrag = true },
                     onDragEnd = { fx, fy ->
                         robotController.setPosition(fx, fy)
@@ -484,8 +498,60 @@ class RobotOverlayService : Service() {
 
     private fun onRobotTapped() {
         robotController.triggerTapReaction()
-        showSpeechBubble("How can I help you?", 3500L)
-        showAssistantOverlay()
+
+        // Check if microphone permission is granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            showSpeechBubble("Mic permission needed! Tap to open app.", 3500L)
+            openMainActivity()
+            return
+        }
+
+        if (speechManager?.isListening == true) {
+            speechManager?.stopListening()
+            robotController.activityState = RobotActivityState.IDLE
+            showSpeechBubble("Stopped listening", 1500L)
+            return
+        }
+
+        // Start listening directly!
+        robotController.activityState = RobotActivityState.LISTENING
+        robotController.mood = RobotMood.THINKING
+        showSpeechBubble("Listening... 🎙️", 6000L)
+        speechManager?.startListening()
+    }
+
+    private fun setupKeyboardAvoidance() {
+        serviceScope.launch {
+            PhoneAutomationAccessibilityService.keyboardTopState.collect { keyboardTop ->
+                val density = resources.displayMetrics.density
+                val robotWidthPx = 110 * density
+                val robotHeightPx = 132 * density
+
+                if (keyboardTop > 0) {
+                    // Keyboard is open! Constrain safeBounds above keyboard
+                    val safeBounds = ScreenBoundsHelper.calculateSafeBounds(
+                        this@RobotOverlayService,
+                        robotWidthPx,
+                        robotHeightPx,
+                        bottomOverride = keyboardTop.toFloat()
+                    )
+                    robotController.updateBounds(safeBounds)
+
+                    // If robot is currently in the keyboard area, move it above keyboard
+                    if (robotController.posY > safeBounds.maxY) {
+                        robotController.setPosition(robotController.posX, safeBounds.maxY)
+                    }
+                } else {
+                    // Keyboard closed! Restore standard safeBounds
+                    val safeBounds = ScreenBoundsHelper.calculateSafeBounds(
+                        this@RobotOverlayService,
+                        robotWidthPx,
+                        robotHeightPx
+                    )
+                    robotController.updateBounds(safeBounds)
+                }
+            }
+        }
     }
 
     private fun toggleMicrophone() {

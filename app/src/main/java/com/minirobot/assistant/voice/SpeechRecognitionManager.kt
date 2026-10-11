@@ -2,7 +2,10 @@ package com.minirobot.assistant.voice
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -15,18 +18,21 @@ import android.util.Log
 class SpeechRecognitionManager(
     private val context: Context,
     private val onReady: () -> Unit,
-    private val onRmsChanged: (Float) -> Unit,
+    private val onRmsUpdate: (Float) -> Unit,
     private val onPartialResult: (String) -> Unit,
     private val onFinalResult: (String) -> Unit,
     private val onError: (String) -> Unit
 ) {
 
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
+
+    @Volatile
     var isListening: Boolean = false
         private set
 
     init {
-        initializeRecognizer()
+        mainHandler.post { initializeRecognizer() }
     }
 
     private fun initializeRecognizer() {
@@ -37,7 +43,15 @@ class SpeechRecognitionManager(
 
         try {
             speechRecognizer?.destroy()
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+            speechRecognizer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+            ) {
+                Log.i(TAG, "Using on-device speech recognizer")
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+            } else {
+                Log.i(TAG, "Using default speech recognizer")
+                SpeechRecognizer.createSpeechRecognizer(context)
+            }.apply {
                 setRecognitionListener(createListener())
             }
         } catch (e: Exception) {
@@ -46,59 +60,72 @@ class SpeechRecognitionManager(
     }
 
     fun startListening() {
-        if (speechRecognizer == null) {
-            initializeRecognizer()
-            if (speechRecognizer == null) {
-                onError("Speech recognition is unavailable on this device.")
-                return
+        mainHandler.post {
+            if (isListening) {
+                Log.d(TAG, "Already listening, ignoring duplicate start request")
+                return@post
             }
-        }
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-        }
+            if (speechRecognizer == null) {
+                initializeRecognizer()
+                if (speechRecognizer == null) {
+                    onError("Speech recognition is unavailable on this device.")
+                    return@post
+                }
+            }
 
-        try {
-            speechRecognizer?.startListening(intent)
-            isListening = true
-            Log.d(TAG, "Started speech recognition")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error starting speech recognition", e)
-            isListening = false
-            onError("Could not start microphone: ${e.localizedMessage}")
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+            }
+
+            try {
+                speechRecognizer?.startListening(intent)
+                isListening = true
+                Log.d(TAG, "Started speech recognition")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error starting speech recognition", e)
+                isListening = false
+                onError("Could not start microphone: ${e.localizedMessage}")
+            }
         }
     }
 
     fun stopListening() {
-        if (!isListening) return
-        try {
-            speechRecognizer?.stopListening()
-        } catch (e: Exception) {
-            Log.w(TAG, "Error stopping speech recognizer", e)
+        mainHandler.post {
+            if (!isListening) return@post
+            try {
+                speechRecognizer?.stopListening()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error stopping speech recognizer", e)
+            }
+            isListening = false
         }
-        isListening = false
     }
 
     fun cancel() {
-        try {
-            speechRecognizer?.cancel()
-        } catch (e: Exception) {
-            Log.w(TAG, "Error cancelling speech recognizer", e)
+        mainHandler.post {
+            try {
+                speechRecognizer?.cancel()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error cancelling speech recognizer", e)
+            }
+            isListening = false
         }
-        isListening = false
     }
 
     fun destroy() {
-        try {
-            speechRecognizer?.destroy()
-            speechRecognizer = null
-        } catch (e: Exception) {
-            Log.w(TAG, "Error destroying speech recognizer", e)
+        mainHandler.post {
+            try {
+                speechRecognizer?.destroy()
+                speechRecognizer = null
+            } catch (e: Exception) {
+                Log.w(TAG, "Error destroying speech recognizer", e)
+            }
+            isListening = false
         }
-        isListening = false
     }
 
     private fun createListener(): RecognitionListener {
@@ -115,7 +142,7 @@ class SpeechRecognitionManager(
             override fun onRmsChanged(rmsdB: Float) {
                 // rmsdB ranges roughly between -2 to 10
                 val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
-                onRmsChanged(normalized)
+                onRmsUpdate(normalized)
             }
 
             override fun onBufferReceived(buffer: ByteArray?) {}
